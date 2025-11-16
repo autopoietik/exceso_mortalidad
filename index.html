@@ -8,6 +8,7 @@
     <title>Exceso de Mortalidad en Chile Urbano 2010-2024</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
     <style>
@@ -445,13 +446,57 @@
         // ============================================
         // CARGA DE DATOS
         // ============================================
-        async function loadData() {
-            try {
-                // Cargar ambos CSV en paralelo
-                const [mortalityRaw, metaRaw] = await Promise.all([
-                    d3.csv('./em_comuna_anio_sexo_edad.csv'),
-                    d3.csv('https://github.com/autopoietik/exceso_mortalidad/releases/download/df/df_final.csv')
-                ]);
+     // ----------------------------------------
+// Función para cargar y descomprimir df_final.zip (vía jsDelivr + JSZip)
+// ----------------------------------------
+async function loadZippedCSV() {
+    const zipUrl = 'https://cdn.jsdelivr.net/gh/autopoietik/exceso_mortalidad/df_final.zip';
+
+    // Descargar el ZIP como arrayBuffer
+    const response = await fetch(zipUrl);
+    if (!response.ok) throw new Error("No se pudo descargar df_final.zip");
+
+    const zipData = await response.arrayBuffer();
+
+    // Descomprimir el contenido
+    const zip = await JSZip.loadAsync(zipData);
+
+    // Obtener el archivo CSV dentro del ZIP
+    const csvFile = zip.file("df_final.csv");
+    if (!csvFile) throw new Error("df_final.csv no se encontró dentro del ZIP");
+
+    // Convertir a texto plano
+    const csvText = await csvFile.async("string");
+
+    // Parsear con D3
+    const parsed = d3.csvParse(csvText);
+
+    return parsed;
+}
+
+// ============================================
+// Cargar datos
+// ============================================
+
+async function loadData() {
+    try {
+        const [mortalityRaw, metaRaw] = await Promise.all([
+            d3.csv('./em_comuna_anio_sexo_edad.csv'),
+            loadZippedCSV()  // <-- aquí reemplazamos la carga anterior
+        ]);
+
+        // Continúa tu flujo normal después de aquí ⬇
+        console.log("Mortality CSV cargado:", mortalityRaw.length);
+        console.log("df_final.csv cargado:", metaRaw.length);
+
+        // ... resto del código (procesamiento, inicialización del mapa, etc.)
+
+    } catch (error) {
+        console.error("Error cargando datos:", error);
+        alert("Hubo un problema cargando los datos. Revisa la consola.");
+    }
+}
+
 
                 // Procesar datos de mortalidad (convertir a numéricos)
                 mortalityData = mortalityRaw.map(d => ({
