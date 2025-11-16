@@ -450,7 +450,7 @@
                 // Cargar ambos CSV en paralelo
                 const [mortalityRaw, metaRaw] = await Promise.all([
                     d3.csv('./em_comuna_anio_sexo_edad.csv'),
-                    d3.csv('https://drive.google.com/uc?export=download&id=1PFccqLuI2BNQ0s3eCqDi7wSJ0VabxRKh')
+                    d3.csv('https://github.com/autopoietik/exceso_mortalidad/releases/download/df/df_final.csv')
                 ]);
 
                 // Procesar datos de mortalidad (convertir a numéricos)
