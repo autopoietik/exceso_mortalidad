@@ -1,0 +1,880 @@
+<!-- Para desplegar en GitHub Pages: subir este archivo junto con em_comuna_anio_sexo_edad.csv y df_final.csv
+     a un repositorio y activar Pages sobre la rama main. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exceso de Mortalidad en Chile Urbano 2010-2024</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: 80px 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 10px;
+            background: white;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .map-container {
+            flex: 1;
+            min-height: 400px;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            background: #f8f9fa;
+        }
+
+        .chart-container {
+            height: 300px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .commune-info {
+            margin-bottom: 30px;
+        }
+
+        .commune-name {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .structural-data {
+            margin-top: 30px;
+        }
+
+        .structural-data h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-weight: 600;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .data-value {
+            font-weight: 700;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .legend-title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-alta { background: #dc3545; color: white; }
+        .status-media { background: #ffc107; color: #000; }
+        .status-baja { background: #28a745; color: white; }
+
+        @media (max-width: 1200px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr auto;
+            }
+            
+            .sidebar {
+                order: -1;
+            }
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-size: 18px;
+            color: #667eea;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>Exceso de Mortalidad en Chile Urbano (2010-2024)</h1>
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Año</label>
+                    <select id="yearFilter" disabled>
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Sexo</label>
+                    <select id="sexFilter" disabled>
+                        <option value="total">Total</option>
+                        <option value="M">Masculino</option>
+                        <option value="F">Femenino</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Grupo Etario</label>
+                    <select id="ageFilter" disabled>
+                        <option value="total">Total</option>
+                        <option value="20-39">20-39 años</option>
+                        <option value="40-59">40-59 años</option>
+                        <option value="60-79">60-79 años</option>
+                        <option value="80+">80+ años</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="map-container" id="mapContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Cargando datos...</div>
+                </div>
+                <div class="legend" style="display: none;">
+                    <div class="legend-title">Tasa de exceso por 100 mil hab.</div>
+                    <div id="legendContent"></div>
+                </div>
+            </div>
+            
+            <div class="chart-container" id="timeSeriesChart"></div>
+        </div>
+
+        <div class="sidebar">
+            <div class="commune-info">
+                <div class="commune-name" id="communeName">Cargando...</div>
+                <div class="metric-card">
+                    <div class="metric-label">Tasa de exceso por 100 mil habit.</div>
+                    <div class="metric-value" id="mortalityRate">--</div>
+                </div>
+            </div>
+
+            <div class="structural-data">
+                <h3>Datos Estructurales</h3>
+                <div class="data-row">
+                    <span class="data-label">Cobertura hospitalaria</span>
+                    <span class="data-value" id="coverageLevel">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Índice de Vulnerabilidad Escolar</span>
+                    <span class="data-value" id="iveLevel">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Exceso de muertes (absoluto)</span>
+                    <span class="data-value" id="excessDeaths">--</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Exceso relativo vs. contrafactual</span>
+                    <span class="data-value" id="excessPct">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // VARIABLES GLOBALES
+        // ============================================
+        let mortalityData = [];      // Datos de em_comuna_anio_sexo_edad.csv
+        let communeMeta = {};         // Metadatos combinados (coordenadas + df_final)
+        let map;
+        let markers = [];
+        let selectedComunaCod = null;
+        let availableYears = [];
+
+        // ============================================
+        // COORDENADAS GEOGRÁFICAS DE COMUNAS CHILENAS
+        // Mapeo de comuna_cod a nombre, lat, lng
+        // ============================================
+        const communeCoordinates = {
+            '1101': { name: 'Iquique', lat: -20.2307, lng: -70.1435 },
+            '1107': { name: 'Alto Hospicio', lat: -20.2694, lng: -70.0976 },
+            '2101': { name: 'Antofagasta', lat: -23.6509, lng: -70.3975 },
+            '2201': { name: 'Calama', lat: -22.4667, lng: -68.9333 },
+            '3101': { name: 'Copiapó', lat: -27.3668, lng: -70.3323 },
+            '3201': { name: 'Vallenar', lat: -28.5708, lng: -70.7583 },
+            '4101': { name: 'La Serena', lat: -29.9027, lng: -71.2519 },
+            '4102': { name: 'Coquimbo', lat: -29.9533, lng: -71.3436 },
+            '5101': { name: 'Valparaíso', lat: -33.0472, lng: -71.6127 },
+            '5109': { name: 'Viña del Mar', lat: -33.0153, lng: -71.5510 },
+            '5201': { name: 'Quilpué', lat: -33.0472, lng: -71.4422 },
+            '5301': { name: 'San Antonio', lat: -33.5956, lng: -71.6184 },
+            '6101': { name: 'Rancagua', lat: -34.1701, lng: -70.7409 },
+            '7101': { name: 'Talca', lat: -35.4264, lng: -71.6554 },
+            '7201': { name: 'Curicó', lat: -34.9830, lng: -71.2394 },
+            '7301': { name: 'Linares', lat: -35.8475, lng: -71.5978 },
+            '8101': { name: 'Concepción', lat: -36.8201, lng: -73.0444 },
+            '8102': { name: 'Talcahuano', lat: -36.7167, lng: -73.1167 },
+            '8103': { name: 'Penco', lat: -36.7414, lng: -72.9897 },
+            '8201': { name: 'Los Ángeles', lat: -37.4689, lng: -72.3527 },
+            '8301': { name: 'Chillán', lat: -36.6063, lng: -72.1034 },
+            '9101': { name: 'Temuco', lat: -38.7359, lng: -72.5904 },
+            '10101': { name: 'Puerto Montt', lat: -41.4693, lng: -72.9424 },
+            '10201': { name: 'Osorno', lat: -40.5742, lng: -73.1317 },
+            '11101': { name: 'Coyhaique', lat: -45.5752, lng: -72.0662 },
+            '12101': { name: 'Punta Arenas', lat: -53.1638, lng: -70.9171 },
+            '13101': { name: 'Santiago', lat: -33.4489, lng: -70.6693 },
+            '13102': { name: 'Independencia', lat: -33.4156, lng: -70.6653 },
+            '13103': { name: 'Conchalí', lat: -33.3833, lng: -70.6692 },
+            '13104': { name: 'Huechuraba', lat: -33.3689, lng: -70.6328 },
+            '13105': { name: 'Recoleta', lat: -33.4167, lng: -70.6333 },
+            '13106': { name: 'Providencia', lat: -33.4267, lng: -70.6153 },
+            '13107': { name: 'Vitacura', lat: -33.3947, lng: -70.5756 },
+            '13108': { name: 'Lo Barnechea', lat: -33.3489, lng: -70.5147 },
+            '13109': { name: 'Las Condes', lat: -33.4172, lng: -70.5447 },
+            '13110': { name: 'Ñuñoa', lat: -33.4569, lng: -70.5975 },
+            '13111': { name: 'La Reina', lat: -33.4489, lng: -70.5397 },
+            '13112': { name: 'Macul', lat: -33.4867, lng: -70.5989 },
+            '13113': { name: 'Peñalolén', lat: -33.4928, lng: -70.5478 },
+            '13114': { name: 'La Florida', lat: -33.5178, lng: -70.5989 },
+            '13115': { name: 'San Joaquín', lat: -33.4986, lng: -70.6297 },
+            '13116': { name: 'La Granja', lat: -33.5350, lng: -70.6189 },
+            '13117': { name: 'La Pintana', lat: -33.5831, lng: -70.6331 },
+            '13118': { name: 'San Ramón', lat: -33.5369, lng: -70.6397 },
+            '13119': { name: 'San Miguel', lat: -33.4967, lng: -70.6508 },
+            '13120': { name: 'La Cisterna', lat: -33.5328, lng: -70.6608 },
+            '13121': { name: 'El Bosque', lat: -33.5628, lng: -70.6789 },
+            '13122': { name: 'Pedro Aguirre Cerda', lat: -33.4939, lng: -70.6761 },
+            '13123': { name: 'Lo Espejo', lat: -33.5219, lng: -70.6931 },
+            '13124': { name: 'Estación Central', lat: -33.4611, lng: -70.6828 },
+            '13125': { name: 'Cerrillos', lat: -33.4939, lng: -70.7128 },
+            '13126': { name: 'Maipú', lat: -33.5089, lng: -70.7581 },
+            '13127': { name: 'Quinta Normal', lat: -33.4311, lng: -70.6978 },
+            '13128': { name: 'Lo Prado', lat: -33.4414, lng: -70.7247 },
+            '13129': { name: 'Pudahuel', lat: -33.4403, lng: -70.7489 },
+            '13130': { name: 'Cerro Navia', lat: -33.4203, lng: -70.7408 },
+            '13131': { name: 'Renca', lat: -33.4056, lng: -70.7219 },
+            '13132': { name: 'Quilicura', lat: -33.3611, lng: -70.7322 },
+            '13201': { name: 'Puente Alto', lat: -33.6103, lng: -70.5756 },
+            '13202': { name: 'San Bernardo', lat: -33.5978, lng: -70.7011 },
+            '13301': { name: 'Colina', lat: -33.2006, lng: -70.6758 },
+            '13401': { name: 'Talagante', lat: -33.6644, lng: -70.9289 },
+            '13501': { name: 'Melipilla', lat: -33.6894, lng: -71.2158 },
+            '14101': { name: 'Valdivia', lat: -39.8142, lng: -73.2458 }
+        };
+
+        // ============================================
+        // CARGA DE DATOS
+        // ============================================
+        async function loadData() {
+            try {
+                // Cargar ambos CSV en paralelo
+                const [mortalityRaw, metaRaw] = await Promise.all([
+                    d3.csv('./em_comuna_anio_sexo_edad.csv'),
+                    d3.csv('./df_final.csv')
+                ]);
+
+                // Procesar datos de mortalidad (convertir a numéricos)
+                mortalityData = mortalityRaw.map(d => ({
+                    comuna_cod: d.comuna_cod,
+                    year: +d.year,
+                    sexo_out: d.sexo_out,
+                    edad_out: d.edad_out,
+                    mu: +d.mu || 0,
+                    mu_hat_cf: +d.mu_hat_cf || 0,
+                    em_count: +d.em_count || 0,
+                    exp_pop: +d.exp_pop || 0,
+                    rate_obs_100k: +d.rate_obs_100k || 0,
+                    rate_cf_100k: +d.rate_cf_100k || 0,
+                    em_rate_100k: +d.em_rate_100k || 0,
+                    em_pct_vs_cf: +d.em_pct_vs_cf || 0
+                }));
+
+                // Extraer años disponibles
+                availableYears = [...new Set(mortalityData.map(d => d.year))].sort((a, b) => b - a);
+
+                // Construir diccionario de metadatos por comuna
+                // Primero, obtener IVE_cat y Cobertura_cat únicos por comuna del df_final
+                const metaByComuna = {};
+                metaRaw.forEach(d => {
+                    const cod = d.comuna_cod;
+                    if (!metaByComuna[cod]) {
+                        metaByComuna[cod] = {
+                            comuna_nom: d.comuna_nom,
+                            IVE_cat: d.IVE_cat,
+                            Cobertura_cat: d.Cobertura_cat
+                        };
+                    }
+                });
+
+                // Combinar con coordenadas geográficas
+                Object.keys(communeCoordinates).forEach(cod => {
+                    const coords = communeCoordinates[cod];
+                    const meta = metaByComuna[cod] || {};
+                    
+                    communeMeta[cod] = {
+                        name: coords.name,
+                        lat: coords.lat,
+                        lng: coords.lng,
+                        IVE_cat: meta.IVE_cat || 'N/D',
+                        Cobertura_cat: meta.Cobertura_cat || 'N/D'
+                    };
+                });
+
+                // Inicializar interfaz
+                populateYearFilter();
+                enableFilters();
+                initMap();
+                
+                // Seleccionar primera comuna disponible
+                const firstComuna = Object.keys(communeMeta)[0];
+                selectedComunaCod = firstComuna;
+                
+                updateMapMarkers();
+                updateSidebarInfo();
+                updateTimeSeries();
+
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                document.querySelector('.loading').innerHTML = 
+                    '<div style="color: #dc3545;">Error al cargar los datos. Verifica que los archivos CSV estén en la misma carpeta.</div>';
+            }
+        }
+
+        // ============================================
+        // FUNCIÓN DE AGREGACIÓN DE MÉTRICAS
+        // ============================================
+        function getMortalityMetrics({ comunaCod = null, year, sexo, edad }) {
+            // Filtrar datos según parámetros
+            let filtered = mortalityData.filter(d => {
+                // Filtro por año
+                if (d.year !== year) return false;
+                
+                // Filtro por comuna (si se especifica)
+                if (comunaCod && d.comuna_cod !== comunaCod) return false;
+                
+                // Filtro por sexo
+                if (sexo === 'total') {
+                    // Incluir ambos sexos
+                } else if (d.sexo_out !== sexo) {
+                    return false;
+                }
+                
+                // Filtro por edad
+                if (edad === 'total') {
+                    // Incluir todos los grupos etarios
+                } else if (d.edad_out !== edad) {
+                    return false;
+                }
+                
+                return true;
+            });
+
+            // Calcular agregados
+            const mu_total = d3.sum(filtered, d => d.mu);
+            const mu_cf_total = d3.sum(filtered, d => d.mu_hat_cf);
+            const exp_pop_total = d3.sum(filtered, d => d.exp_pop);
+            const em_count_total = mu_total - mu_cf_total;
+
+            // Calcular tasas por 100k
+            const rate_obs_100k = exp_pop_total > 0 ? (mu_total / exp_pop_total) * 1e5 : 0;
+            const rate_cf_100k = exp_pop_total > 0 ? (mu_cf_total / exp_pop_total) * 1e5 : 0;
+            const em_rate_100k = exp_pop_total > 0 ? (em_count_total / exp_pop_total) * 1e5 : 0;
+            const em_pct_vs_cf = mu_cf_total > 0 ? (em_count_total / mu_cf_total) * 100 : 0;
+
+            return {
+                mu_total,
+                mu_cf_total,
+                exp_pop_total,
+                em_count_total,
+                rate_obs_100k,
+                rate_cf_100k,
+                em_rate_100k,
+                em_pct_vs_cf
+            };
+        }
+
+        // ============================================
+        // INICIALIZACIÓN DE INTERFAZ
+        // ============================================
+        function populateYearFilter() {
+            const select = document.getElementById('yearFilter');
+            select.innerHTML = availableYears.map(y => 
+                `<option value="${y}">${y}</option>`
+            ).join('');
+        }
+
+        function enableFilters() {
+            document.getElementById('yearFilter').disabled = false;
+            document.getElementById('sexFilter').disabled = false;
+            document.getElementById('ageFilter').disabled = false;
+
+            // Event listeners
+            document.getElementById('yearFilter').addEventListener('change', updateAll);
+            document.getElementById('sexFilter').addEventListener('change', updateAll);
+            document.getElementById('ageFilter').addEventListener('change', updateAll);
+        }
+
+        function updateAll() {
+            updateMapMarkers();
+            updateSidebarInfo();
+            updateTimeSeries();
+        }
+
+        // ============================================
+        // MAPA INTERACTIVO
+        // ============================================
+        function initMap() {
+            map = L.map('mapContainer').setView([-35.0, -71.0], 5);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            document.querySelector('.legend').style.display = 'block';
+        }
+
+        function updateMapMarkers() {
+            // Limpiar marcadores existentes
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+
+            const year = parseInt(document.getElementById('yearFilter').value);
+            const sexo = document.getElementById('sexFilter').value;
+            const edad = document.getElementById('ageFilter').value;
+
+            // Calcular métricas para todas las comunas
+            const communeMetrics = [];
+            Object.keys(communeMeta).forEach(cod => {
+                const metrics = getMortalityMetrics({ comunaCod: cod, year, sexo, edad });
+                if (metrics.exp_pop_total > 0) {
+                    communeMetrics.push({
+                        cod,
+                        em_rate_100k: metrics.em_rate_100k
+                    });
+                }
+            });
+
+            // Calcular cuantiles para la escala de color
+            const rates = communeMetrics.map(d => d.em_rate_100k).sort((a, b) => a - b);
+            const q20 = d3.quantile(rates, 0.2);
+            const q40 = d3.quantile(rates, 0.4);
+            const q60 = d3.quantile(rates, 0.6);
+            const q80 = d3.quantile(rates, 0.8);
+
+            // Función para determinar color
+            function getColor(rate) {
+                if (rate <= q20) return '#006d2c';
+                if (rate <= q40) return '#31a354';
+                if (rate <= q60) return '#74c476';
+                if (rate <= q80) return '#fd8d3c';
+                return '#d94701';
+            }
+
+            // Actualizar leyenda
+            const legendContent = document.getElementById('legendContent');
+            legendContent.innerHTML = `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #006d2c;"></div>
+                    <span>Muy Bajo (&le; ${q20.toFixed(1)})</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #31a354;"></div>
+                    <span>Bajo (${q20.toFixed(1)} - ${q40.toFixed(1)})</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #74c476;"></div>
+                    <span>Medio (${q40.toFixed(1)} - ${q60.toFixed(1)})</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fd8d3c;"></div>
+                    <span>Alto (${q60.toFixed(1)} - ${q80.toFixed(1)})</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #d94701;"></div>
+                    <span>Muy Alto (&gt; ${q80.toFixed(1)})</span>
+                </div>
+            `;
+
+            // Crear marcadores
+            Object.keys(communeMeta).forEach(cod => {
+                const meta = communeMeta[cod];
+                const metrics = getMortalityMetrics({ comunaCod: cod, year, sexo, edad });
+                
+                if (metrics.exp_pop_total === 0) return;
+
+                const color = getColor(metrics.em_rate_100k);
+                const radius = Math.max(5, Math.min(15, Math.abs(metrics.em_rate_100k) / 10));
+
+                const marker = L.circleMarker([meta.lat, meta.lng], {
+                    radius: radius,
+                    fillColor: color,
+                    color: 'white',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div style="font-family: 'Segoe UI', sans-serif; padding: 10px; min-width: 200px;">
+                        <h3 style="margin: 0 0 10px 0; color: #333;">${meta.name}</h3>
+                        <p style="margin: 5px 0;"><strong>Tasa de exceso por 100 mil habit.:</strong> ${metrics.em_rate_100k.toFixed(2)}</p>
+                        <p style="margin: 5px 0;"><strong>Cobertura hospitalaria:</strong> ${meta.Cobertura_cat}</p>
+                        <p style="margin: 5px 0;"><strong>Índice de Vulnerabilidad Escolar:</strong> ${meta.IVE_cat}</p>
+                    </div>
+                `);
+
+                marker.on('click', () => {
+                    selectedComunaCod = cod;
+                    updateSidebarInfo();
+                    updateTimeSeries();
+                });
+
+                markers.push(marker);
+            });
+        }
+
+        // ============================================
+        // PANEL LATERAL (SIDEBAR)
+        // ============================================
+        function updateSidebarInfo() {
+            if (!selectedComunaCod) return;
+
+            const year = parseInt(document.getElementById('yearFilter').value);
+            const sexo = document.getElementById('sexFilter').value;
+            const edad = document.getElementById('ageFilter').value;
+
+            const meta = communeMeta[selectedComunaCod];
+            const metrics = getMortalityMetrics({ 
+                comunaCod: selectedComunaCod, 
+                year, 
+                sexo, 
+                edad 
+            });
+
+            document.getElementById('communeName').textContent = meta.name;
+            document.getElementById('mortalityRate').textContent = 
+                metrics.em_rate_100k.toFixed(2);
+            
+            // Cobertura hospitalaria
+            const coverageText = meta.Cobertura_cat === 'ALTA' ? 'Alta' : 
+                                 meta.Cobertura_cat === 'BAJA' ? 'Baja' : 'N/D';
+            document.getElementById('coverageLevel').innerHTML = 
+                `<span class="status-badge status-${meta.Cobertura_cat.toLowerCase()}">${coverageText}</span>`;
+            
+            // IVE
+            const iveText = meta.IVE_cat === 'ALTA' ? 'Alta' : 
+                           meta.IVE_cat === 'MEDIA' ? 'Media' : 
+                           meta.IVE_cat === 'BAJA' ? 'Baja' : 'N/D';
+            document.getElementById('iveLevel').innerHTML = 
+                `<span class="status-badge status-${meta.IVE_cat.toLowerCase()}">${iveText}</span>`;
+            
+            // Exceso de muertes absoluto
+            document.getElementById('excessDeaths').textContent = 
+                Math.round(metrics.em_count_total).toLocaleString();
+            
+            // Exceso porcentual
+            document.getElementById('excessPct').textContent = 
+                `${metrics.em_pct_vs_cf.toFixed(1)}%`;
+        }
+
+        // ============================================
+        // GRÁFICO DE SERIES TEMPORALES
+        // ============================================
+        function updateTimeSeries() {
+            if (!selectedComunaCod) return;
+
+            const sexo = document.getElementById('sexFilter').value;
+            const edad = document.getElementById('ageFilter').value;
+
+            // Serie 1: Comuna seleccionada
+            const communeData = availableYears.map(year => {
+                const m = getMortalityMetrics({ 
+                    comunaCod: selectedComunaCod, 
+                    year, 
+                    sexo, 
+                    edad 
+                });
+                return m.em_rate_100k;
+            });
+
+            // Serie 2: Promedio nacional
+            const nationalData = availableYears.map(year => {
+                const m = getMortalityMetrics({ 
+                    comunaCod: null,  // Todas las comunas
+                    year, 
+                    sexo, 
+                    edad 
+                });
+                return m.em_rate_100k;
+            });
+
+            // Serie 3: Comunas de alta vulnerabilidad escolar
+            const highIVECommunes = Object.keys(communeMeta)
+                .filter(cod => communeMeta[cod].IVE_cat === 'ALTA');
+            
+            const highIVEData = availableYears.map(year => {
+                // Agregar solo comunas con IVE alta
+                let mu_sum = 0, mu_cf_sum = 0, pop_sum = 0;
+                
+                highIVECommunes.forEach(cod => {
+                    const m = getMortalityMetrics({ 
+                        comunaCod: cod, 
+                        year, 
+                        sexo, 
+                        edad 
+                    });
+                    mu_sum += m.mu_total;
+                    mu_cf_sum += m.mu_cf_total;
+                    pop_sum += m.exp_pop_total;
+                });
+                
+                const em_count = mu_sum - mu_cf_sum;
+                return pop_sum > 0 ? (em_count / pop_sum) * 1e5 : 0;
+            });
+
+            const traces = [
+                {
+                    x: availableYears,
+                    y: communeData,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: communeMeta[selectedComunaCod].name,
+                    line: { color: '#667eea', width: 3 },
+                    marker: { size: 8 }
+                },
+                {
+                    x: availableYears,
+                    y: nationalData,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Promedio Nacional',
+                    line: { color: '#28a745', width: 2, dash: 'dash' }
+                },
+                {
+                    x: availableYears,
+                    y: highIVEData,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: 'Comunas Alta Vulnerabilidad',
+                    line: { color: '#dc3545', width: 2, dash: 'dot' }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: 'Evolución Temporal del Exceso de Mortalidad',
+                    font: { size: 16, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Año',
+                    showgrid: true,
+                    gridcolor: '#e9ecef'
+                },
+                yaxis: { 
+                    title: 'Tasa de exceso por 100 mil habit.',
+                    showgrid: true,
+                    gridcolor: '#e9ecef'
+                },
+                showlegend: true,
+                legend: { 
+                    x: 0, 
+                    y: 1,
+                    bgcolor: 'rgba(255,255,255,0.8)'
+                },
+                margin: { l: 70, r: 20, t: 60, b: 60 },
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)'
+            };
+
+            Plotly.newPlot('timeSeriesChart', traces, layout, {responsive: true});
+        }
+
+        // ============================================
+        // INICIALIZACIÓN AL CARGAR LA PÁGINA
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+        });
+    </script>
+</body>
+</html>
