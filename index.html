@@ -477,93 +477,91 @@ async function loadZippedCSV() {
 // ============================================
 // Cargar datos
 // ============================================
-
 async function loadData() {
     try {
         const [mortalityRaw, metaRaw] = await Promise.all([
             d3.csv('./em_comuna_anio_sexo_edad.csv'),
-            loadZippedCSV()  // <-- aquí reemplazamos la carga anterior
+            loadZippedCSV()  // <-- nueva carga desde ZIP
         ]);
 
-        // Continúa tu flujo normal después de aquí ⬇
         console.log("Mortality CSV cargado:", mortalityRaw.length);
         console.log("df_final.csv cargado:", metaRaw.length);
 
-        // ... resto del código (procesamiento, inicialización del mapa, etc.)
+        // -----------------------------------------
+        // Procesar datos de mortalidad
+        // -----------------------------------------
+        mortalityData = mortalityRaw.map(d => ({
+            comuna_cod: d.comuna_cod,
+            year: +d.year,
+            sexo_out: d.sexo_out,
+            edad_out: d.edad_out,
+            mu: +d.mu || 0,
+            mu_hat_cf: +d.mu_hat_cf || 0,
+            em_count: +d.em_count || 0,
+            exp_pop: +d.exp_pop || 0,
+            rate_obs_100k: +d.rate_obs_100k || 0,
+            rate_cf_100k: +d.rate_cf_100k || 0,
+            em_rate_100k: +d.em_rate_100k || 0,
+            em_pct_vs_cf: +d.em_pct_vs_cf || 0
+        }));
+
+        // -----------------------------------------
+        // Extraer años disponibles
+        // -----------------------------------------
+        availableYears = [...new Set(mortalityData.map(d => d.year))]
+            .sort((a, b) => b - a);
+
+        // -----------------------------------------
+        // Diccionario de metadatos por comuna
+        // -----------------------------------------
+        const metaByComuna = {};
+        metaRaw.forEach(d => {
+            const cod = d.comuna_cod;
+            if (!metaByComuna[cod]) {
+                metaByComuna[cod] = {
+                    comuna_nom: d.comuna_nom,
+                    IVE_cat: d.IVE_cat,
+                    Cobertura_cat: d.Cobertura_cat
+                };
+            }
+        });
+
+        // Combinar con coordenadas geográficas
+        Object.keys(communeCoordinates).forEach(cod => {
+            const coords = communeCoordinates[cod];
+            const meta = metaByComuna[cod] || {};
+            
+            communeMeta[cod] = {
+                name: coords.name,
+                lat: coords.lat,
+                lng: coords.lng,
+                IVE_cat: meta.IVE_cat || 'N/D',
+                Cobertura_cat: meta.Cobertura_cat || 'N/D'
+            };
+        });
+
+        // -----------------------------------------
+        // Inicializar interfaz
+        // -----------------------------------------
+        populateYearFilter();
+        enableFilters();
+        initMap();
+        
+        // Seleccionar primera comuna disponible
+        const firstComuna = Object.keys(communeMeta)[0];
+        selectedComunaCod = firstComuna;
+        
+        updateMapMarkers();
+        updateSidebarInfo();
+        updateTimeSeries();
 
     } catch (error) {
-        console.error("Error cargando datos:", error);
-        alert("Hubo un problema cargando los datos. Revisa la consola.");
+        console.error('Error cargando datos:', error);
+        document.querySelector('.loading').innerHTML = 
+            '<div style="color: #dc3545;">Error al cargar los datos. Verifica que los archivos estén accesibles.</div>';
     }
 }
 
-
-                // Procesar datos de mortalidad (convertir a numéricos)
-                mortalityData = mortalityRaw.map(d => ({
-                    comuna_cod: d.comuna_cod,
-                    year: +d.year,
-                    sexo_out: d.sexo_out,
-                    edad_out: d.edad_out,
-                    mu: +d.mu || 0,
-                    mu_hat_cf: +d.mu_hat_cf || 0,
-                    em_count: +d.em_count || 0,
-                    exp_pop: +d.exp_pop || 0,
-                    rate_obs_100k: +d.rate_obs_100k || 0,
-                    rate_cf_100k: +d.rate_cf_100k || 0,
-                    em_rate_100k: +d.em_rate_100k || 0,
-                    em_pct_vs_cf: +d.em_pct_vs_cf || 0
-                }));
-
-                // Extraer años disponibles
-                availableYears = [...new Set(mortalityData.map(d => d.year))].sort((a, b) => b - a);
-
-                // Construir diccionario de metadatos por comuna
-                // Primero, obtener IVE_cat y Cobertura_cat únicos por comuna del df_final
-                const metaByComuna = {};
-                metaRaw.forEach(d => {
-                    const cod = d.comuna_cod;
-                    if (!metaByComuna[cod]) {
-                        metaByComuna[cod] = {
-                            comuna_nom: d.comuna_nom,
-                            IVE_cat: d.IVE_cat,
-                            Cobertura_cat: d.Cobertura_cat
-                        };
-                    }
-                });
-
-                // Combinar con coordenadas geográficas
-                Object.keys(communeCoordinates).forEach(cod => {
-                    const coords = communeCoordinates[cod];
-                    const meta = metaByComuna[cod] || {};
-                    
-                    communeMeta[cod] = {
-                        name: coords.name,
-                        lat: coords.lat,
-                        lng: coords.lng,
-                        IVE_cat: meta.IVE_cat || 'N/D',
-                        Cobertura_cat: meta.Cobertura_cat || 'N/D'
-                    };
-                });
-
-                // Inicializar interfaz
-                populateYearFilter();
-                enableFilters();
-                initMap();
-                
-                // Seleccionar primera comuna disponible
-                const firstComuna = Object.keys(communeMeta)[0];
-                selectedComunaCod = firstComuna;
-                
-                updateMapMarkers();
-                updateSidebarInfo();
-                updateTimeSeries();
-
-            } catch (error) {
-                console.error('Error cargando datos:', error);
-                document.querySelector('.loading').innerHTML = 
-                    '<div style="color: #dc3545;">Error al cargar los datos. Verifica que los archivos CSV estén en la misma carpeta.</div>';
-            }
-        }
 
         // ============================================
         // FUNCIÓN DE AGREGACIÓN DE MÉTRICAS
